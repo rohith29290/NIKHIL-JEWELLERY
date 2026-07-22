@@ -1,0 +1,6 @@
+{
+  "name": "Nikhil and Brother Jewellery",
+  "description": "Luxury jewellery store in Hyderabad with live gold rates, appointment booking with AI thank-you messages, and admin appointment dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
