@@ -1,16 +1,31 @@
+export interface GoldRateHistoryItem {
+  date: string;
+  rate24k: number;
+  rate22k: number;
+  rate18k?: number;
+  silverRate?: number;
+  rate24k_10g?: number;
+  rate22k_10g?: number;
+  rate18k_10g?: number;
+  silverRate_10g?: number;
+}
+
 export interface GoldRate {
   rate24k: number; // per gram in INR
   rate22k: number; // per gram in INR
   rate18k: number; // per gram in INR
   silverRate: number; // per gram in INR
+  rate24k_10g?: number; // per 10 grams in INR
+  rate22k_10g?: number; // per 10 grams in INR
+  rate18k_10g?: number; // per 10 grams in INR
+  silverRate_10g?: number; // per 10 grams in INR
+  silverRate_1kg?: number; // per 1 kg in INR
   lastUpdated: string; // ISO date string
   trend: 'up' | 'down' | 'stable';
   changeAmount24k: number;
-  history: Array<{
-    date: string;
-    rate24k: number;
-    rate22k: number;
-  }>;
+  city?: string;
+  source?: string;
+  history: GoldRateHistoryItem[];
 }
 
 export type PurposeType = 

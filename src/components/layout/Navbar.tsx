@@ -36,7 +36,13 @@ export const Navbar: React.FC = () => {
 
   useEffect(() => {
     // Fetch live gold rate ticker
-    apiService.getGoldRate().then(setGoldRate).catch(console.error);
+    const fetchGoldRate = () => {
+      apiService.getGoldRate().then(setGoldRate).catch(console.error);
+    };
+    fetchGoldRate();
+
+    const interval = setInterval(fetchGoldRate, 300000); // refresh every 5 mins
+    return () => clearInterval(interval);
   }, [location.pathname]);
 
   const navLinks = [

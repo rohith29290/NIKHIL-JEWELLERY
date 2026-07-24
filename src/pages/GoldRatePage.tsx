@@ -15,21 +15,30 @@ export const GoldRatePage: React.FC = () => {
   const [carat, setCarat] = useState<'22k' | '24k' | '18k'>('22k');
   const [makingChargePct, setMakingChargePct] = useState<number>(12); // estimated 12% making charges
 
-  const fetchRate = async () => {
+  const fetchRate = async (isManualRefresh = false) => {
     try {
       setRefreshing(true);
-      const data = await apiService.getGoldRate();
+      const data = isManualRefresh 
+        ? await apiService.refreshGoldRate() 
+        : await apiService.getGoldRate();
       setGoldRate(data);
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching live gold rate:', err);
     } finally {
       setLoading(false);
-      setTimeout(() => setRefreshing(false), 600);
+      setTimeout(() => setRefreshing(false), 500);
     }
   };
 
   useEffect(() => {
-    fetchRate();
+    fetchRate(false);
+
+    // Auto refresh data every 5 minutes (300,000 ms)
+    const interval = setInterval(() => {
+      fetchRate(false);
+    }, 300000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Calculation formulas
@@ -76,25 +85,34 @@ export const GoldRatePage: React.FC = () => {
                 <Clock className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Last Updated</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Live Rate • Hyderabad</p>
+                  <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping" />
+                    Auto-refreshes every 5m
+                  </span>
+                </div>
                 <p className="font-serif font-bold text-[#014D40] text-sm sm:text-base">
                   {goldRate
                     ? new Date(goldRate.lastUpdated).toLocaleString('en-IN', {
                         dateStyle: 'medium',
-                        timeStyle: 'short',
+                        timeStyle: 'medium',
                       })
-                    : 'Loading...'}
+                    : 'Loading live stream...'}
                 </p>
+                {goldRate?.source && (
+                  <p className="text-[11px] text-gray-500 font-medium">Source: {goldRate.source}</p>
+                )}
               </div>
             </div>
 
             <button
-              onClick={fetchRate}
+              onClick={() => fetchRate(true)}
               disabled={refreshing}
-              className="inline-flex items-center gap-2 bg-[#014D40]/10 hover:bg-[#014D40] text-[#014D40] hover:text-[#F3E5AB] border border-[#014D40]/30 px-5 py-2.5 rounded-full text-xs font-bold transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-2 bg-[#014D40] hover:bg-[#00382E] text-[#F3E5AB] border border-[#D4AF37]/50 px-5 py-2.5 rounded-full text-xs font-bold transition-all disabled:opacity-50 shadow-md hover:shadow-lg glow-gold"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>{refreshing ? 'Refreshing Rates...' : 'Refresh Rate'}</span>
+              <span>{refreshing ? 'Refreshing Live Feed...' : 'Force Refresh Rates'}</span>
             </button>
           </div>
 
@@ -102,69 +120,133 @@ export const GoldRatePage: React.FC = () => {
           {loading ? (
             <div className="py-20 text-center">
               <RefreshCw className="w-10 h-10 text-[#D4AF37] animate-spin mx-auto mb-3" />
-              <p className="text-sm text-gray-500">Fetching latest gold rates...</p>
+              <p className="text-sm text-gray-500">Fetching live market prices for Hyderabad...</p>
             </div>
           ) : goldRate ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-8">
               {/* 24K Card */}
-              <div className="bg-[#F8F6F2] rounded-2xl p-6 border-2 border-[#D4AF37] relative overflow-hidden shadow-md hover:shadow-xl transition-shadow">
-                <span className="absolute top-3 right-3 bg-[#D4AF37] text-[#014D40] text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full">
-                  99.9% Pure
-                </span>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">24 Carat Gold</p>
-                <h3 className="font-serif text-3xl font-extrabold text-[#014D40] mt-2 mb-1">
-                  ₹{goldRate.rate24k.toLocaleString('en-IN')}
-                </h3>
-                <p className="text-xs text-gray-500 font-medium">per gram (₹{(goldRate.rate24k * 10).toLocaleString('en-IN')} / 10g)</p>
+              <div className="bg-[#F8F6F2] rounded-2xl p-6 border-2 border-[#D4AF37] relative overflow-hidden shadow-md hover:shadow-xl transition-shadow flex flex-col justify-between">
+                <div>
+                  <span className="absolute top-3 right-3 bg-[#D4AF37] text-[#014D40] text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow-sm">
+                    99.9% Pure
+                  </span>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">24 Carat Gold (Hyderabad)</p>
+                  
+                  {/* Per Gram */}
+                  <div className="mt-3">
+                    <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide">Rate per Gram</p>
+                    <h3 className="font-serif text-3xl font-extrabold text-[#014D40]">
+                      ₹{goldRate.rate24k.toLocaleString('en-IN')}
+                    </h3>
+                  </div>
+
+                  {/* Per 10 Grams */}
+                  <div className="mt-3 pt-3 border-t border-gray-200 bg-white/70 p-2.5 rounded-xl border border-gray-200">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Rate per 10 Grams</p>
+                    <p className="font-serif font-bold text-lg text-[#014D40]">
+                      ₹{(goldRate.rate24k_10g || goldRate.rate24k * 10).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="mt-4 pt-3 border-t border-gray-200 text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>Highest Purity Standard</span>
+                  <span>24K Bullion Quality Standard</span>
                 </div>
               </div>
 
               {/* 22K Card (Standard Hallmarked) */}
-              <div className="bg-[#014D40] text-white rounded-2xl p-6 border-2 border-[#D4AF37] relative overflow-hidden shadow-xl hover:shadow-2xl transition-shadow glow-gold">
-                <span className="absolute top-3 right-3 bg-[#F3E5AB] text-[#014D40] text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow-sm">
-                  916 Hallmarked
-                </span>
-                <p className="text-xs uppercase tracking-wider text-[#F3E5AB] font-bold">22 Carat Gold</p>
-                <h3 className="font-serif text-3xl font-extrabold text-white mt-2 mb-1">
-                  ₹{goldRate.rate22k.toLocaleString('en-IN')}
-                </h3>
-                <p className="text-xs text-gray-200 font-medium">per gram (₹{(goldRate.rate22k * 10).toLocaleString('en-IN')} / 10g)</p>
+              <div className="bg-[#014D40] text-white rounded-2xl p-6 border-2 border-[#D4AF37] relative overflow-hidden shadow-xl hover:shadow-2xl transition-shadow glow-gold flex flex-col justify-between">
+                <div>
+                  <span className="absolute top-3 right-3 bg-[#F3E5AB] text-[#014D40] text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow-sm">
+                    916 Hallmarked
+                  </span>
+                  <p className="text-xs uppercase tracking-wider text-[#F3E5AB] font-bold">22 Carat Gold (Hyderabad)</p>
+                  
+                  {/* Per Gram */}
+                  <div className="mt-3">
+                    <p className="text-[11px] text-emerald-200 font-semibold uppercase tracking-wide">Rate per Gram</p>
+                    <h3 className="font-serif text-3xl font-extrabold text-white">
+                      ₹{goldRate.rate22k.toLocaleString('en-IN')}
+                    </h3>
+                  </div>
+
+                  {/* Per 10 Grams */}
+                  <div className="mt-3 pt-3 border-t border-white/20 bg-[#00382E] p-2.5 rounded-xl border border-[#D4AF37]/30">
+                    <p className="text-[10px] text-[#F3E5AB] font-bold uppercase tracking-wider">Rate per 10 Grams</p>
+                    <p className="font-serif font-bold text-lg text-white">
+                      ₹{(goldRate.rate22k_10g || goldRate.rate22k * 10).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="mt-4 pt-3 border-t border-white/20 text-[11px] text-[#F3E5AB] font-semibold flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span>Most Popular for Jewellery</span>
+                  <span>Standard BIS 916 Jewellery Standard</span>
                 </div>
               </div>
 
               {/* 18K Card */}
-              <div className="bg-[#F8F6F2] rounded-2xl p-6 border border-gray-300 relative overflow-hidden shadow-md">
-                <span className="absolute top-3 right-3 bg-gray-200 text-gray-700 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
-                  75% Gold
-                </span>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">18 Carat Gold</p>
-                <h3 className="font-serif text-3xl font-extrabold text-[#014D40] mt-2 mb-1">
-                  ₹{goldRate.rate18k.toLocaleString('en-IN')}
-                </h3>
-                <p className="text-xs text-gray-500 font-medium">per gram (₹{(goldRate.rate18k * 10).toLocaleString('en-IN')} / 10g)</p>
+              <div className="bg-[#F8F6F2] rounded-2xl p-6 border border-gray-300 relative overflow-hidden shadow-md flex flex-col justify-between">
+                <div>
+                  <span className="absolute top-3 right-3 bg-gray-200 text-gray-700 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
+                    75% Gold
+                  </span>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">18 Carat Gold (Hyderabad)</p>
+                  
+                  {/* Per Gram */}
+                  <div className="mt-3">
+                    <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide">Rate per Gram</p>
+                    <h3 className="font-serif text-3xl font-extrabold text-[#014D40]">
+                      ₹{goldRate.rate18k.toLocaleString('en-IN')}
+                    </h3>
+                  </div>
+
+                  {/* Per 10 Grams */}
+                  <div className="mt-3 pt-3 border-t border-gray-200 bg-white/70 p-2.5 rounded-xl border border-gray-200">
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Rate per 10 Grams</p>
+                    <p className="font-serif font-bold text-lg text-[#014D40]">
+                      ₹{(goldRate.rate18k_10g || goldRate.rate18k * 10).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="mt-4 pt-3 border-t border-gray-200 text-[11px] text-gray-600 font-medium">
-                  Ideal for Diamond Settings
+                  Ideal for Diamond & Gemstone Jewellery
                 </div>
               </div>
 
               {/* Fine Silver Card */}
-              <div className="bg-[#F8F6F2] rounded-2xl p-6 border border-gray-300 relative overflow-hidden shadow-md">
-                <span className="absolute top-3 right-3 bg-slate-300 text-slate-800 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
-                  Fine Silver
-                </span>
-                <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Pure Silver</p>
-                <h3 className="font-serif text-3xl font-extrabold text-[#014D40] mt-2 mb-1">
-                  ₹{goldRate.silverRate.toLocaleString('en-IN')}
-                </h3>
-                <p className="text-xs text-gray-500 font-medium">per gram (₹{(goldRate.silverRate * 1000).toLocaleString('en-IN')} / kg)</p>
+              <div className="bg-[#F8F6F2] rounded-2xl p-6 border border-gray-300 relative overflow-hidden shadow-md flex flex-col justify-between">
+                <div>
+                  <span className="absolute top-3 right-3 bg-slate-300 text-slate-800 text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full">
+                    Fine Silver
+                  </span>
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Pure Silver (Hyderabad)</p>
+                  
+                  {/* Per Gram */}
+                  <div className="mt-3">
+                    <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide">Rate per Gram</p>
+                    <h3 className="font-serif text-3xl font-extrabold text-[#014D40]">
+                      ₹{goldRate.silverRate.toLocaleString('en-IN')}
+                    </h3>
+                  </div>
+
+                  {/* Per 10 Grams & Per 1 KG */}
+                  <div className="mt-3 pt-3 border-t border-gray-200 bg-white/70 p-2.5 rounded-xl border border-gray-200 space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-500 font-medium">10 Grams:</span>
+                      <span className="font-bold text-[#014D40]">₹{(goldRate.silverRate_10g || goldRate.silverRate * 10).toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs pt-1 border-t border-gray-200">
+                      <span className="text-gray-500 font-medium">1 Kilogram:</span>
+                      <span className="font-bold text-[#014D40]">₹{(goldRate.silverRate_1kg || goldRate.silverRate * 1000).toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="mt-4 pt-3 border-t border-gray-200 text-[11px] text-gray-600 font-medium">
-                  Pure 999 Silver Articles
+                  Pure 999 Fine Silver Articles & Ornaments
                 </div>
               </div>
             </div>
@@ -209,17 +291,19 @@ export const GoldRatePage: React.FC = () => {
                 {goldRate.history.map((h, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between p-3.5 rounded-xl bg-[#F8F6F2] border border-gray-200 text-xs hover:border-[#D4AF37] transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-[#F8F6F2] border border-gray-200 text-xs hover:border-[#D4AF37] transition-colors gap-2"
                   >
-                    <span className="font-semibold text-gray-700">{h.date}</span>
-                    <div className="flex items-center gap-6">
+                    <span className="font-semibold text-[#014D40] sm:w-1/3">{h.date}</span>
+                    <div className="flex items-center justify-between sm:justify-end gap-6 sm:w-2/3">
                       <div>
-                        <span className="text-gray-400 text-[10px] block">22K</span>
+                        <span className="text-gray-500 text-[10px] block font-semibold">22K (916)</span>
                         <span className="font-bold text-[#014D40]">₹{h.rate22k.toLocaleString('en-IN')}/g</span>
+                        <span className="text-[10px] text-gray-500 block">₹{(h.rate22k_10g || h.rate22k * 10).toLocaleString('en-IN')} / 10g</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-gray-400 text-[10px] block">24K</span>
+                        <span className="text-gray-500 text-[10px] block font-semibold">24K (Pure)</span>
                         <span className="font-bold text-[#014D40]">₹{h.rate24k.toLocaleString('en-IN')}/g</span>
+                        <span className="text-[10px] text-gray-500 block">₹{(h.rate24k_10g || h.rate24k * 10).toLocaleString('en-IN')} / 10g</span>
                       </div>
                     </div>
                   </div>

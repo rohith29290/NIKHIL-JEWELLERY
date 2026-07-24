@@ -13,6 +13,16 @@ export const apiService = {
     return json.data;
   },
 
+  // Trigger Live Refresh
+  refreshGoldRate: async (): Promise<GoldRate> => {
+    const res = await fetch(`${API_BASE}/gold-rate/refresh`, { method: 'POST' });
+    if (!res.ok) {
+      throw new Error('Failed to refresh gold rates');
+    }
+    const json = await res.json();
+    return json.data;
+  },
+
   // Admin Update Gold Rate
   updateGoldRate: async (data: Partial<GoldRate>): Promise<GoldRate> => {
     const res = await fetch(`${API_BASE}/gold-rate/update`, {
