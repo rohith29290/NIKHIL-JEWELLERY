@@ -6,20 +6,20 @@ export const apiService = {
   // Fetch Today's Gold Rate
   getGoldRate: async (): Promise<GoldRate> => {
     const res = await fetch(`${API_BASE}/gold-rate`);
-    if (!res.ok) {
-      throw new Error('Failed to fetch gold rates');
-    }
     const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error || 'Live gold price temporarily unavailable.');
+    }
     return json.data;
   },
 
   // Trigger Live Refresh
   refreshGoldRate: async (): Promise<GoldRate> => {
     const res = await fetch(`${API_BASE}/gold-rate/refresh`, { method: 'POST' });
-    if (!res.ok) {
-      throw new Error('Failed to refresh gold rates');
-    }
     const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error || 'Live gold price temporarily unavailable.');
+    }
     return json.data;
   },
 

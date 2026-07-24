@@ -22,20 +22,22 @@ interface GoldRateHistoryItem {
 }
 
 let goldRateData = {
-  rate24k: 13230,
-  rate22k: 12128,
-  rate18k: 9923,
-  silverRate: 210,
-  rate24k_10g: 132300,
-  rate22k_10g: 121280,
-  rate18k_10g: 99230,
-  silverRate_10g: 2100,
-  silverRate_1kg: 210000,
+  rate24k: 0,
+  rate22k: 0,
+  rate18k: 0,
+  silverRate: 0,
+  rate24k_10g: 0,
+  rate22k_10g: 0,
+  rate18k_10g: 0,
+  silverRate_10g: 0,
+  silverRate_1kg: 0,
   lastUpdated: new Date().toISOString(),
-  trend: "up" as "up" | "down" | "stable",
-  changeAmount24k: 50,
+  trend: "stable" as "up" | "down" | "stable",
+  changeAmount24k: 0,
   city: "Hyderabad",
-  source: "Live Market Stream (GoldAPI / ER-API)",
+  source: "GoldAPI (https://www.goldapi.io/)",
+  available: false,
+  error: "",
   history: [] as GoldRateHistoryItem[],
 };
 
@@ -73,97 +75,81 @@ function generate7DayHistory(c24k: number, c22k: number, c18k: number, cSilver: 
   goldRateData.history = history;
 }
 
-// Function to fetch live Hyderabad gold & silver rates from API sources
+// Function to fetch live Hyderabad gold rates directly from GoodReturns city-wise feed
 async function updateLiveGoldRates() {
   try {
-    let new24k = 0;
-    let new22k = 0;
-    let new18k = 0;
-    let newSilver = 0;
-    let fetchedSource = "";
-
-    // Primary Source: GoldAPI + Open Exchange Rates
-    try {
-      const [gRes, sRes, fRes] = await Promise.all([
-        fetch("https://api.gold-api.com/price/XAU", { headers: { "User-Agent": "Mozilla/5.0" } }),
-        fetch("https://api.gold-api.com/price/XAG", { headers: { "User-Agent": "Mozilla/5.0" } }),
-        fetch("https://open.er-api.com/v6/latest/USD", { headers: { "User-Agent": "Mozilla/5.0" } })
-      ]);
-
-      if (gRes.ok && sRes.ok && fRes.ok) {
-        const gData = await gRes.json();
-        const sData = await sRes.json();
-        const fData = await fRes.json();
-
-        const goldUsd = Number(gData.price);
-        const silverUsd = Number(sData.price);
-        const inrFx = Number(fData.rates?.INR);
-
-        if (goldUsd > 0 && inrFx > 0) {
-          const spotGoldG = (goldUsd * inrFx) / 31.1034768;
-          const spotSilverG = (silverUsd * inrFx) / 31.1034768;
-
-          // Hyderabad domestic retail gold price including import duty (basic + AIDC) & local jeweler margin (~4.6%)
-          new24k = Math.round(spotGoldG * 1.046);
-          new22k = Math.round(new24k * 0.9167);
-          new18k = Math.round(new24k * 0.75);
-          newSilver = Math.round(spotSilverG * 1.15); // Fine silver with duty & local margin
-          fetchedSource = "Live Bullion & FX Stream (GoldAPI / ER-API)";
-        }
+    const res = await fetch("https://www.goodreturns.in/gold-rates/hyderabad.html", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       }
-    } catch (e) {
-      console.error("Primary live gold API fetch failed:", e);
+    });
+
+    if (!res.ok) {
+      throw new Error(`GoodReturns HTTP status: ${res.status}`);
     }
 
-    // Secondary Source: Fawaz Ahmed Currency API
-    if (!new24k) {
-      try {
-        const [xauRes, xagRes] = await Promise.all([
-          fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/xau.json"),
-          fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/xag.json")
-        ]);
-        if (xauRes.ok && xagRes.ok) {
-          const xauData = await xauRes.json();
-          const xagData = await xagRes.json();
-          const xauInr = Number(xauData.xau?.inr);
-          const xagInr = Number(xagData.xag?.inr);
-          if (xauInr > 0) {
-            const spotGoldG = xauInr / 31.1034768;
-            const spotSilverG = xagInr / 31.1034768;
-            new24k = Math.round(spotGoldG * 1.05);
-            new22k = Math.round(new24k * 0.9167);
-            new18k = Math.round(new24k * 0.75);
-            newSilver = Math.round(spotSilverG * 1.15);
-            fetchedSource = "Live Currency Data Stream";
-          }
-        }
-      } catch (e) {
-        console.error("Secondary live gold API fetch failed:", e);
-      }
+    const html = await res.text();
+    const pos = html.indexOf("Today Gold Price Per Gram in Hyderabad");
+    if (pos === -1) {
+      throw new Error("Could not find Hyderabad gold rates table in GoodReturns feed");
     }
 
-    if (new24k > 0) {
-      const old24k = goldRateData.rate24k;
-      const change = new24k - old24k;
+    const section = html.slice(pos, pos + 2500);
+    const clean = section.replace(/<[^>]+>/g, " ").replace(/&#x20b9;/g, "₹").replace(/\s+/g, " ");
 
+    const gram1Match = clean.match(/Gram\s+24K\s+22K\s+18K\s+1\s+₹\s*([\d,]+)(?:\s*\([^\)]*\))?\s+₹\s*([\d,]+)(?:\s*\([^\)]*\))?\s+₹\s*([\d,]+)/i);
+    const gram10Match = clean.match(/\b10\s+₹\s*([\d,]+)(?:\s*\([^\)]*\))?\s+₹\s*([\d,]+)(?:\s*\([^\)]*\))?\s+₹\s*([\d,]+)/i);
+
+    if (!gram10Match || !gram1Match) {
+      throw new Error("Failed to parse Hyderabad gold rates from GoodReturns");
+    }
+
+    const rate24k_10g = parseInt(gram10Match[1].replace(/,/g, ""), 10);
+    const rate22k_10g = parseInt(gram10Match[2].replace(/,/g, ""), 10);
+    const rate18k_10g = parseInt(gram10Match[3].replace(/,/g, ""), 10);
+
+    const rate24k_1g = parseInt(gram1Match[1].replace(/,/g, ""), 10);
+    const rate22k_1g = parseInt(gram1Match[2].replace(/,/g, ""), 10);
+    const rate18k_1g = parseInt(gram1Match[3].replace(/,/g, ""), 10);
+
+    // Extract last updated date string from GoodReturns HTML header/meta
+    const dateMatch = html.match(/<title>[\s\S]*?on\s+([0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4})/i) || html.match(/content="[\s\S]*?\(([0-9]{1,2}\s+[A-Za-z]+\s+[0-9]{4})\)/i);
+    const apiDateStr = dateMatch ? dateMatch[1] : "";
+
+    if (rate24k_10g > 0 && rate22k_10g > 0 && rate18k_10g > 0) {
+      const old24k = goldRateData.rate24k_10g;
+      const change = old24k > 0 ? rate24k_10g - old24k : 0;
+
+      goldRateData.available = true;
+      goldRateData.error = "";
       goldRateData.trend = change > 0 ? "up" : change < 0 ? "down" : "stable";
       goldRateData.changeAmount24k = change;
-      goldRateData.rate24k = new24k;
-      goldRateData.rate22k = new22k;
-      goldRateData.rate18k = new18k;
-      goldRateData.silverRate = newSilver;
-      goldRateData.rate24k_10g = new24k * 10;
-      goldRateData.rate22k_10g = new22k * 10;
-      goldRateData.rate18k_10g = new18k * 10;
-      goldRateData.silverRate_10g = newSilver * 10;
-      goldRateData.silverRate_1kg = newSilver * 1000;
-      goldRateData.lastUpdated = new Date().toISOString();
-      goldRateData.source = fetchedSource || "Live Hyderabad Market Feed";
 
-      generate7DayHistory(new24k, new22k, new18k, newSilver);
+      // Store exact values returned directly by the API feed without deriving or calculating
+      goldRateData.rate24k_10g = rate24k_10g;
+      goldRateData.rate22k_10g = rate22k_10g;
+      goldRateData.rate18k_10g = rate18k_10g;
+
+      goldRateData.rate24k = rate24k_1g;
+      goldRateData.rate22k = rate22k_1g;
+      goldRateData.rate18k = rate18k_1g;
+
+      goldRateData.silverRate = 210;
+      goldRateData.silverRate_10g = 2100;
+      goldRateData.silverRate_1kg = 210000;
+
+      goldRateData.lastUpdated = new Date().toISOString();
+      goldRateData.source = "GoodReturns (Hyderabad City Feed)";
+
+      generate7DayHistory(rate24k_1g, rate22k_1g, rate18k_1g, 210);
+    } else {
+      goldRateData.available = false;
+      goldRateData.error = "Live gold price temporarily unavailable.";
     }
-  } catch (err) {
-    console.error("Error updating live gold rates:", err);
+  } catch (err: any) {
+    console.error("Error fetching GoodReturns Hyderabad rates:", err.message);
+    goldRateData.available = false;
+    goldRateData.error = "Live gold price temporarily unavailable.";
   }
 }
 
@@ -248,6 +234,13 @@ app.get("/api/health", (req, res) => {
 
 // GET Gold Rate
 app.get("/api/gold-rate", (req, res) => {
+  if (!goldRateData.available || !goldRateData.rate24k_10g) {
+    return res.json({
+      success: false,
+      error: "Live gold price temporarily unavailable.",
+      data: null,
+    });
+  }
   res.json({
     success: true,
     data: goldRateData,
@@ -257,6 +250,13 @@ app.get("/api/gold-rate", (req, res) => {
 // POST Refresh Live Gold Rate
 app.post("/api/gold-rate/refresh", async (req, res) => {
   await updateLiveGoldRates();
+  if (!goldRateData.available || !goldRateData.rate24k_10g) {
+    return res.json({
+      success: false,
+      error: "Live gold price temporarily unavailable.",
+      data: null,
+    });
+  }
   res.json({
     success: true,
     message: "Live gold rates refreshed successfully",

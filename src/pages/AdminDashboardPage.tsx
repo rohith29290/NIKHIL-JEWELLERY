@@ -28,8 +28,8 @@ export const AdminDashboardPage: React.FC = () => {
   const [filterPurpose, setFilterPurpose] = useState<string>('All');
 
   // Gold Rate Edit Form state
-  const [rate24kInput, setRate24kInput] = useState<number>(10250);
-  const [rate22kInput, setRate22kInput] = useState<number>(9400);
+  const [rate24kInput, setRate24kInput] = useState<number>(0);
+  const [rate22kInput, setRate22kInput] = useState<number>(0);
   const [updatingRate, setUpdatingRate] = useState<boolean>(false);
   const [rateMessage, setRateMessage] = useState<string>('');
 

@@ -9,21 +9,42 @@ export const GoldRatePage: React.FC = () => {
   const [goldRate, setGoldRate] = useState<GoldRate | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Gold Rate Calculator state
   const [grams, setGrams] = useState<number>(10);
   const [carat, setCarat] = useState<'22k' | '24k' | '18k'>('22k');
   const [makingChargePct, setMakingChargePct] = useState<number>(12); // estimated 12% making charges
 
+  const formatISTDate = (isoString?: string) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    const day = d.toLocaleDateString('en-IN', { day: '2-digit', timeZone: 'Asia/Kolkata' });
+    const month = d.toLocaleDateString('en-IN', { month: 'short', timeZone: 'Asia/Kolkata' });
+    const year = d.toLocaleDateString('en-IN', { year: 'numeric', timeZone: 'Asia/Kolkata' });
+    const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }).toUpperCase();
+    return `${day} ${month} ${year}, ${time} IST`;
+  };
+
   const fetchRate = async (isManualRefresh = false) => {
     try {
       setRefreshing(true);
+      setErrorMsg(null);
       const data = isManualRefresh 
         ? await apiService.refreshGoldRate() 
         : await apiService.getGoldRate();
-      setGoldRate(data);
-    } catch (err) {
+      
+      if (data && data.rate24k_10g) {
+        setGoldRate(data);
+      } else {
+        setGoldRate(null);
+        setErrorMsg('Live gold price temporarily unavailable.');
+      }
+    } catch (err: any) {
       console.error('Error fetching live gold rate:', err);
+      setGoldRate(null);
+      setErrorMsg('Live gold price temporarily unavailable.');
     } finally {
       setLoading(false);
       setTimeout(() => setRefreshing(false), 500);
@@ -93,12 +114,7 @@ export const GoldRatePage: React.FC = () => {
                   </span>
                 </div>
                 <p className="font-serif font-bold text-[#014D40] text-sm sm:text-base">
-                  {goldRate
-                    ? new Date(goldRate.lastUpdated).toLocaleString('en-IN', {
-                        dateStyle: 'medium',
-                        timeStyle: 'medium',
-                      })
-                    : 'Loading live stream...'}
+                  {goldRate ? formatISTDate(goldRate.lastUpdated) : loading ? 'Loading live stream...' : 'Unavailable'}
                 </p>
                 {goldRate?.source && (
                   <p className="text-[11px] text-gray-500 font-medium">Source: {goldRate.source}</p>
@@ -116,13 +132,61 @@ export const GoldRatePage: React.FC = () => {
             </button>
           </div>
 
-          {/* Rate Cards Grid */}
-          {loading ? (
-            <div className="py-20 text-center">
-              <RefreshCw className="w-10 h-10 text-[#D4AF37] animate-spin mx-auto mb-3" />
-              <p className="text-sm text-gray-500">Fetching live market prices for Hyderabad...</p>
-            </div>
-          ) : goldRate ? (
+          {/* Featured Summary Box per prompt requirements */}
+          <div className="mt-8 bg-[#014D40]/5 border-2 border-[#D4AF37] rounded-2xl p-6 sm:p-8 shadow-inner">
+            <h2 className="font-serif text-2xl sm:text-3xl font-extrabold text-[#014D40] mb-4">
+              Today's Gold Rate – Hyderabad
+            </h2>
+
+            {loading ? (
+              <div className="py-8 text-center">
+                <RefreshCw className="w-8 h-8 text-[#D4AF37] animate-spin mx-auto mb-2" />
+                <p className="text-xs text-gray-500">Fetching live Hyderabad gold prices...</p>
+              </div>
+            ) : goldRate ? (
+              <div>
+                <ul className="space-y-3 font-semibold text-lg sm:text-xl text-gray-800 mb-6">
+                  <li className="flex items-center gap-3">
+                    <span className="text-[#D4AF37] font-extrabold text-2xl">•</span>
+                    <span>24K Gold – </span>
+                    <span className="font-serif font-extrabold text-[#014D40] text-xl sm:text-2xl">
+                      ₹{(goldRate.rate24k_10g || goldRate.rate24k * 10).toLocaleString('en-IN')} /10g
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <span className="text-[#D4AF37] font-extrabold text-2xl">•</span>
+                    <span>22K Gold – </span>
+                    <span className="font-serif font-extrabold text-[#014D40] text-xl sm:text-2xl">
+                      ₹{(goldRate.rate22k_10g || goldRate.rate22k * 10).toLocaleString('en-IN')} /10g
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <span className="text-[#D4AF37] font-extrabold text-2xl">•</span>
+                    <span>18K Gold – </span>
+                    <span className="font-serif font-extrabold text-[#014D40] text-xl sm:text-2xl">
+                      ₹{(goldRate.rate18k_10g || goldRate.rate18k * 10).toLocaleString('en-IN')} /10g
+                    </span>
+                  </li>
+                </ul>
+
+                <div className="pt-4 border-t border-gray-300 text-xs sm:text-sm text-gray-700">
+                  <span className="font-bold text-gray-500 uppercase tracking-wider block text-[11px] mb-0.5">
+                    Last Updated:
+                  </span>
+                  <span className="font-medium text-[#014D40] text-sm">
+                    {formatISTDate(goldRate.lastUpdated)}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl font-bold text-sm">
+                Live gold price temporarily unavailable.
+              </div>
+            )}
+          </div>
+
+          {/* Detailed Rate Cards Grid */}
+          {!loading && goldRate ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-8">
               {/* 24K Card */}
               <div className="bg-[#F8F6F2] rounded-2xl p-6 border-2 border-[#D4AF37] relative overflow-hidden shadow-md hover:shadow-xl transition-shadow flex flex-col justify-between">
